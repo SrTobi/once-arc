@@ -361,4 +361,36 @@ mod tests {
     let dbg = format!("{:?}", cell);
     assert!(dbg.contains("42"));
   }
+
+  /// Poisons the mutex by panicking inside `init` on another thread.
+  fn poisoned_cell() -> Arc<MutexInitArcOption<i32>> {
+    use std::thread;
+    let cell = Arc::new(MutexInitArcOption::<i32>::new());
+    let c = cell.clone();
+    let _ = thread::spawn(move || {
+      let _ = c.init(|| panic!("deliberate poison"));
+    })
+    .join();
+    cell
+  }
+
+  #[test]
+  fn store_returns_poison_error() {
+    let cell = poisoned_cell();
+    let err = cell.store(Arc::new(1)).unwrap_err();
+    assert!(err.is_err()); // Err(PoisonError)
+  }
+
+  #[test]
+  fn init_returns_poison_error() {
+    let cell = poisoned_cell();
+    assert!(cell.init(|| Arc::new(1)).is_err());
+  }
+
+  #[test]
+  fn try_init_returns_poison_error() {
+    let cell = poisoned_cell();
+    let err = cell.try_init(|| Ok::<_, &str>(Arc::new(1))).unwrap_err();
+    assert!(err.is_err()); // Err(PoisonError)
+  }
 }
