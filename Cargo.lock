@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "atomic-once-arc"
+name = "once-arc"
 version = "0.1.0"

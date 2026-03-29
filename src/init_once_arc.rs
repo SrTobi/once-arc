@@ -2,14 +2,14 @@ use std::fmt;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, PoisonError};
 
-use crate::AtomicOnceArcOption;
+use crate::OnceArc;
 
 /// A thread-safe container that can be lazily initialized once with an `Arc<T>`,
 /// using a mutex to protect the initialization function.
 ///
-/// This builds on [`AtomicOnceArcOption`] by adding `init` and
+/// This builds on [`OnceArc`] by adding `init` and
 /// `try_init` methods. The fast path (value already set) is a single
-/// atomic load — identical to `AtomicOnceArcOption::get`. The slow path
+/// atomic load — identical to `OnceArc::get`. The slow path
 /// (first initialization) acquires a mutex, double-checks that no other thread
 /// initialized in the meantime, runs the provided closure, and stores the
 /// result.
@@ -19,9 +19,9 @@ use crate::AtomicOnceArcOption;
 /// ```
 /// use std::sync::Arc;
 /// use std::sync::atomic::Ordering;
-/// use atomic_once_arc::MutexInitArcOption;
+/// use once_arc::InitOnceArc;
 ///
-/// let cell: MutexInitArcOption<String> = MutexInitArcOption::new();
+/// let cell: InitOnceArc<String> = InitOnceArc::new();
 ///
 /// // First call runs the initializer
 /// assert_eq!(cell.init(|| "hello".to_string().into()).unwrap(), true);
@@ -30,29 +30,29 @@ use crate::AtomicOnceArcOption;
 /// assert_eq!(cell.init(|| "world".to_string().into()).unwrap(), false);
 /// assert_eq!(cell.get(Ordering::Acquire).unwrap(), "hello");
 /// ```
-pub struct MutexInitArcOption<T> {
-  inner: AtomicOnceArcOption<T>,
+pub struct InitOnceArc<T> {
+  inner: OnceArc<T>,
   init_mutex: Mutex<()>,
 }
 
-// SAFETY: Same reasoning as AtomicOnceArcOption — T is behind an Arc
+// SAFETY: Same reasoning as OnceArc — T is behind an Arc
 // and only accessible via shared reference. The Mutex is Send + Sync.
-unsafe impl<T: Send + Sync> Send for MutexInitArcOption<T> {}
-unsafe impl<T: Send + Sync> Sync for MutexInitArcOption<T> {}
+unsafe impl<T: Send + Sync> Send for InitOnceArc<T> {}
+unsafe impl<T: Send + Sync> Sync for InitOnceArc<T> {}
 
-impl<T> MutexInitArcOption<T> {
-  /// Creates a new empty `MutexInitArcOption`.
+impl<T> InitOnceArc<T> {
+  /// Creates a new empty `InitOnceArc`.
   ///
   /// # Examples
   ///
   /// ```
-  /// use atomic_once_arc::MutexInitArcOption;
+  /// use once_arc::InitOnceArc;
   ///
-  /// let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
+  /// let cell: InitOnceArc<i32> = InitOnceArc::new();
   /// ```
   pub const fn new() -> Self {
     Self {
-      inner: AtomicOnceArcOption::new(),
+      inner: OnceArc::new(),
       init_mutex: Mutex::new(()),
     }
   }
@@ -68,9 +68,9 @@ impl<T> MutexInitArcOption<T> {
   ///
   /// ```
   /// use std::sync::Arc;
-  /// use atomic_once_arc::MutexInitArcOption;
+  /// use once_arc::InitOnceArc;
   ///
-  /// let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
+  /// let cell: InitOnceArc<i32> = InitOnceArc::new();
   /// assert!(cell.store(Arc::new(42)).is_ok());
   ///
   /// let err = cell.store(Arc::new(99)).unwrap_err().unwrap();
@@ -96,9 +96,9 @@ impl<T> MutexInitArcOption<T> {
   ///
   /// ```
   /// use std::sync::Arc;
-  /// use atomic_once_arc::MutexInitArcOption;
+  /// use once_arc::InitOnceArc;
   ///
-  /// let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
+  /// let cell: InitOnceArc<i32> = InitOnceArc::new();
   /// assert_eq!(cell.init(|| Arc::new(42)).unwrap(), true);
   /// assert_eq!(cell.init(|| Arc::new(99)).unwrap(), false); // already initialized
   /// ```
@@ -126,9 +126,9 @@ impl<T> MutexInitArcOption<T> {
   ///
   /// ```
   /// use std::sync::Arc;
-  /// use atomic_once_arc::MutexInitArcOption;
+  /// use once_arc::InitOnceArc;
   ///
-  /// let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
+  /// let cell: InitOnceArc<i32> = InitOnceArc::new();
   ///
   /// let err = cell.try_init(|| Err("oops")).unwrap_err().unwrap();
   /// assert_eq!(err, "oops");
@@ -163,9 +163,9 @@ impl<T> MutexInitArcOption<T> {
   /// ```
   /// use std::sync::Arc;
   /// use std::sync::atomic::Ordering;
-  /// use atomic_once_arc::MutexInitArcOption;
+  /// use once_arc::InitOnceArc;
   ///
-  /// let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
+  /// let cell: InitOnceArc<i32> = InitOnceArc::new();
   /// assert!(cell.get(Ordering::Acquire).is_none());
   ///
   /// cell.init(|| Arc::new(42)).unwrap();
@@ -183,9 +183,9 @@ impl<T> MutexInitArcOption<T> {
   /// ```
   /// use std::sync::Arc;
   /// use std::sync::atomic::Ordering;
-  /// use atomic_once_arc::MutexInitArcOption;
+  /// use once_arc::InitOnceArc;
   ///
-  /// let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
+  /// let cell: InitOnceArc<i32> = InitOnceArc::new();
   /// cell.init(|| Arc::new(42)).unwrap();
   /// let arc = cell.load(Ordering::Acquire).unwrap();
   /// assert_eq!(*arc, 42);
@@ -201,9 +201,9 @@ impl<T> MutexInitArcOption<T> {
   /// ```
   /// use std::sync::Arc;
   /// use std::sync::atomic::Ordering;
-  /// use atomic_once_arc::MutexInitArcOption;
+  /// use once_arc::InitOnceArc;
   ///
-  /// let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
+  /// let cell: InitOnceArc<i32> = InitOnceArc::new();
   /// assert!(!cell.is_set(Ordering::Relaxed));
   /// cell.init(|| Arc::new(1)).unwrap();
   /// assert!(cell.is_set(Ordering::Relaxed));
@@ -218,9 +218,9 @@ impl<T> MutexInitArcOption<T> {
   ///
   /// ```
   /// use std::sync::Arc;
-  /// use atomic_once_arc::MutexInitArcOption;
+  /// use once_arc::InitOnceArc;
   ///
-  /// let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
+  /// let cell: InitOnceArc<i32> = InitOnceArc::new();
   /// cell.init(|| Arc::new(42)).unwrap();
   /// let arc = cell.into_inner().unwrap();
   /// assert_eq!(*arc, 42);
@@ -238,9 +238,9 @@ impl<T> MutexInitArcOption<T> {
   /// ```
   /// use std::sync::Arc;
   /// use std::sync::atomic::Ordering;
-  /// use atomic_once_arc::MutexInitArcOption;
+  /// use once_arc::InitOnceArc;
   ///
-  /// let mut cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
+  /// let mut cell: InitOnceArc<i32> = InitOnceArc::new();
   /// cell.init(|| Arc::new(10)).unwrap();
   /// *cell.get_mut().unwrap() = 20;
   /// assert_eq!(cell.get(Ordering::Acquire), Some(&20));
@@ -250,15 +250,15 @@ impl<T> MutexInitArcOption<T> {
   }
 }
 
-impl<T> Default for MutexInitArcOption<T> {
+impl<T> Default for InitOnceArc<T> {
   fn default() -> Self {
     Self::new()
   }
 }
 
-impl<T: fmt::Debug> fmt::Debug for MutexInitArcOption<T> {
+impl<T: fmt::Debug> fmt::Debug for InitOnceArc<T> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    f.debug_struct("MutexInitArcOption")
+    f.debug_struct("InitOnceArc")
       .field("value", &self.inner.get(Ordering::SeqCst))
       .finish()
   }
@@ -272,7 +272,7 @@ mod tests {
 
   #[test]
   fn once_arc_init() {
-    let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
+    let cell: InitOnceArc<i32> = InitOnceArc::new();
     assert_eq!(cell.init(|| Arc::new(42)).unwrap(), true);
     assert_eq!(cell.init(|| Arc::new(99)).unwrap(), false);
     assert_eq!(cell.get(Ordering::Acquire), Some(&42));
@@ -280,13 +280,13 @@ mod tests {
 
   #[test]
   fn once_arc_get_empty() {
-    let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
+    let cell: InitOnceArc<i32> = InitOnceArc::new();
     assert!(cell.get(Ordering::Acquire).is_none());
   }
 
   #[test]
   fn once_arc_try_init_err_then_ok() {
-    let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
+    let cell: InitOnceArc<i32> = InitOnceArc::new();
     let err = cell.try_init(|| Err("fail")).unwrap_err().unwrap();
     assert_eq!(err, "fail");
     assert!(cell.get(Ordering::Acquire).is_none());
@@ -298,7 +298,7 @@ mod tests {
 
   #[test]
   fn once_arc_load_and_is_set() {
-    let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
+    let cell: InitOnceArc<i32> = InitOnceArc::new();
     assert!(!cell.is_set(Ordering::Relaxed));
     assert!(cell.load(Ordering::Acquire).is_none());
 
@@ -309,7 +309,7 @@ mod tests {
 
   #[test]
   fn once_arc_into_inner() {
-    let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
+    let cell: InitOnceArc<i32> = InitOnceArc::new();
     cell.init(|| Arc::new(42)).unwrap();
     let arc = cell.into_inner().unwrap();
     assert_eq!(*arc, 42);
@@ -317,7 +317,7 @@ mod tests {
 
   #[test]
   fn once_arc_into_inner_empty() {
-    let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
+    let cell: InitOnceArc<i32> = InitOnceArc::new();
     assert!(cell.into_inner().is_none());
   }
 
@@ -327,7 +327,7 @@ mod tests {
     use std::sync::atomic::AtomicUsize;
     use std::thread;
 
-    let cell = Arc::new(MutexInitArcOption::<i32>::new());
+    let cell = Arc::new(InitOnceArc::<i32>::new());
     let init_count = Arc::new(AtomicUsize::new(0));
     let barrier = Arc::new(Barrier::new(10));
     let mut handles = Vec::new();
@@ -356,16 +356,16 @@ mod tests {
 
   #[test]
   fn once_arc_debug_fmt() {
-    let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
+    let cell: InitOnceArc<i32> = InitOnceArc::new();
     cell.init(|| Arc::new(42)).unwrap();
     let dbg = format!("{:?}", cell);
     assert!(dbg.contains("42"));
   }
 
   /// Poisons the mutex by panicking inside `init` on another thread.
-  fn poisoned_cell() -> Arc<MutexInitArcOption<i32>> {
+  fn poisoned_cell() -> Arc<InitOnceArc<i32>> {
     use std::thread;
-    let cell = Arc::new(MutexInitArcOption::<i32>::new());
+    let cell = Arc::new(InitOnceArc::<i32>::new());
     let c = cell.clone();
     let _ = thread::spawn(move || {
       let _ = c.init(|| panic!("deliberate poison"));

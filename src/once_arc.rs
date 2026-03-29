@@ -15,9 +15,9 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 /// ```
 /// use std::sync::Arc;
 /// use std::sync::atomic::Ordering;
-/// use atomic_once_arc::AtomicOnceArcOption;
+/// use once_arc::OnceArc;
 ///
-/// let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+/// let slot: OnceArc<i32> = OnceArc::new();
 /// assert!(slot.get(Ordering::Acquire).is_none());
 ///
 /// slot.store(Arc::new(42), Ordering::Release).unwrap();
@@ -33,24 +33,24 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 /// let err = slot.store(Arc::new(99), Ordering::Release).unwrap_err();
 /// assert_eq!(*err, 99);
 /// ```
-pub struct AtomicOnceArcOption<T> {
+pub struct OnceArc<T> {
   ptr: AtomicPtr<T>,
 }
 
 // SAFETY: The inner `T` is behind an `Arc` and only accessible via shared reference.
 // `Send` and `Sync` require `T: Send + Sync` to match `Arc<T>`'s bounds.
-unsafe impl<T: Send + Sync> Send for AtomicOnceArcOption<T> {}
-unsafe impl<T: Send + Sync> Sync for AtomicOnceArcOption<T> {}
+unsafe impl<T: Send + Sync> Send for OnceArc<T> {}
+unsafe impl<T: Send + Sync> Sync for OnceArc<T> {}
 
-impl<T> AtomicOnceArcOption<T> {
-  /// Creates a new empty `AtomicOnceArcOption`.
+impl<T> OnceArc<T> {
+  /// Creates a new empty `OnceArc`.
   ///
   /// # Examples
   ///
   /// ```
-  /// use atomic_once_arc::AtomicOnceArcOption;
+  /// use once_arc::OnceArc;
   ///
-  /// let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+  /// let slot: OnceArc<i32> = OnceArc::new();
   /// ```
   pub const fn new() -> Self {
     Self {
@@ -71,9 +71,9 @@ impl<T> AtomicOnceArcOption<T> {
   /// ```
   /// use std::sync::Arc;
   /// use std::sync::atomic::Ordering;
-  /// use atomic_once_arc::AtomicOnceArcOption;
+  /// use once_arc::OnceArc;
   ///
-  /// let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+  /// let slot: OnceArc<i32> = OnceArc::new();
   /// assert!(slot.store(Arc::new(42), Ordering::Release).is_ok());
   ///
   /// // Second store fails
@@ -107,9 +107,9 @@ impl<T> AtomicOnceArcOption<T> {
   /// ```
   /// use std::sync::Arc;
   /// use std::sync::atomic::Ordering;
-  /// use atomic_once_arc::AtomicOnceArcOption;
+  /// use once_arc::OnceArc;
   ///
-  /// let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+  /// let slot: OnceArc<i32> = OnceArc::new();
   /// assert_eq!(slot.get(Ordering::Acquire), None);
   ///
   /// slot.store(Arc::new(42), Ordering::Release).unwrap();
@@ -137,9 +137,9 @@ impl<T> AtomicOnceArcOption<T> {
   /// ```
   /// use std::sync::Arc;
   /// use std::sync::atomic::Ordering;
-  /// use atomic_once_arc::AtomicOnceArcOption;
+  /// use once_arc::OnceArc;
   ///
-  /// let slot = AtomicOnceArcOption::from(Arc::new(42));
+  /// let slot = OnceArc::from(Arc::new(42));
   /// let arc = slot.load(Ordering::Acquire).unwrap();
   /// assert_eq!(*arc, 42);
   /// ```
@@ -162,9 +162,9 @@ impl<T> AtomicOnceArcOption<T> {
   /// ```
   /// use std::sync::Arc;
   /// use std::sync::atomic::Ordering;
-  /// use atomic_once_arc::AtomicOnceArcOption;
+  /// use once_arc::OnceArc;
   ///
-  /// let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+  /// let slot: OnceArc<i32> = OnceArc::new();
   /// assert!(!slot.is_set(Ordering::Relaxed));
   ///
   /// slot.store(Arc::new(1), Ordering::Release).unwrap();
@@ -181,9 +181,9 @@ impl<T> AtomicOnceArcOption<T> {
   /// ```
   /// use std::sync::Arc;
   /// use std::sync::atomic::Ordering;
-  /// use atomic_once_arc::AtomicOnceArcOption;
+  /// use once_arc::OnceArc;
   ///
-  /// let slot = AtomicOnceArcOption::from(Arc::new(42));
+  /// let slot = OnceArc::from(Arc::new(42));
   /// let arc = slot.into_inner().unwrap();
   /// assert_eq!(*arc, 42);
   /// ```
@@ -208,9 +208,9 @@ impl<T> AtomicOnceArcOption<T> {
   /// ```
   /// use std::sync::Arc;
   /// use std::sync::atomic::Ordering;
-  /// use atomic_once_arc::AtomicOnceArcOption;
+  /// use once_arc::OnceArc;
   ///
-  /// let mut slot = AtomicOnceArcOption::from(Arc::new(10));
+  /// let mut slot = OnceArc::from(Arc::new(10));
   /// *slot.get_mut().unwrap() = 20;
   /// assert_eq!(slot.get(Ordering::Acquire), Some(&20));
   /// ```
@@ -227,21 +227,21 @@ impl<T> AtomicOnceArcOption<T> {
   }
 }
 
-impl<T> Default for AtomicOnceArcOption<T> {
+impl<T> Default for OnceArc<T> {
   fn default() -> Self {
     Self::new()
   }
 }
 
-impl<T: fmt::Debug> fmt::Debug for AtomicOnceArcOption<T> {
+impl<T: fmt::Debug> fmt::Debug for OnceArc<T> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    f.debug_struct("AtomicOnceArcOption")
+    f.debug_struct("OnceArc")
       .field("value", &self.get(Ordering::SeqCst))
       .finish()
   }
 }
 
-impl<T> Drop for AtomicOnceArcOption<T> {
+impl<T> Drop for OnceArc<T> {
   fn drop(&mut self) {
     let ptr = *self.ptr.get_mut();
     if !ptr.is_null() {
@@ -252,7 +252,7 @@ impl<T> Drop for AtomicOnceArcOption<T> {
   }
 }
 
-impl<T> From<Arc<T>> for AtomicOnceArcOption<T> {
+impl<T> From<Arc<T>> for OnceArc<T> {
   fn from(value: Arc<T>) -> Self {
     Self {
       ptr: AtomicPtr::new(Arc::into_raw(value) as *mut T),
@@ -260,7 +260,7 @@ impl<T> From<Arc<T>> for AtomicOnceArcOption<T> {
   }
 }
 
-impl<T> From<Option<Arc<T>>> for AtomicOnceArcOption<T> {
+impl<T> From<Option<Arc<T>>> for OnceArc<T> {
   fn from(value: Option<Arc<T>>) -> Self {
     match value {
       Some(arc) => Self::from(arc),
@@ -277,7 +277,7 @@ mod tests {
 
   #[test]
   fn empty_loads_none() {
-    let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+    let slot: OnceArc<i32> = OnceArc::new();
     assert!(slot.get(Ordering::Acquire).is_none());
     assert!(slot.load(Ordering::Acquire).is_none());
     assert!(!slot.is_set(Ordering::Relaxed));
@@ -285,7 +285,7 @@ mod tests {
 
   #[test]
   fn set_once_and_load() {
-    let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+    let slot: OnceArc<i32> = OnceArc::new();
     slot.store(Arc::new(42), Ordering::Release).unwrap();
     assert_eq!(*slot.get(Ordering::Acquire).unwrap(), 42);
     assert!(slot.is_set(Ordering::Relaxed));
@@ -293,7 +293,7 @@ mod tests {
 
   #[test]
   fn set_twice_fails() {
-    let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+    let slot: OnceArc<i32> = OnceArc::new();
     slot.store(Arc::new(1), Ordering::Release).unwrap();
     let err = slot.store(Arc::new(2), Ordering::Release).unwrap_err();
     assert_eq!(*err, 2);
@@ -302,7 +302,7 @@ mod tests {
 
   #[test]
   fn load_returns_arc() {
-    let slot: AtomicOnceArcOption<&str> = AtomicOnceArcOption::new();
+    let slot: OnceArc<&str> = OnceArc::new();
     let original = Arc::new("hello");
     slot.store(original.clone(), Ordering::Release).unwrap();
 
@@ -313,7 +313,7 @@ mod tests {
 
   #[test]
   fn into_inner_returns_arc() {
-    let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+    let slot: OnceArc<i32> = OnceArc::new();
     let original = Arc::new(100);
     slot.store(original.clone(), Ordering::Release).unwrap();
 
@@ -324,7 +324,7 @@ mod tests {
 
   #[test]
   fn into_inner_empty() {
-    let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+    let slot: OnceArc<i32> = OnceArc::new();
     assert!(slot.into_inner().is_none());
   }
 
@@ -333,7 +333,7 @@ mod tests {
     let arc = Arc::new(42);
     assert_eq!(Arc::strong_count(&arc), 1);
     {
-      let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+      let slot: OnceArc<i32> = OnceArc::new();
       slot.store(arc.clone(), Ordering::Release).unwrap();
       assert_eq!(Arc::strong_count(&arc), 2);
     }
@@ -342,25 +342,25 @@ mod tests {
 
   #[test]
   fn from_arc() {
-    let slot = AtomicOnceArcOption::from(Arc::new(7));
+    let slot = OnceArc::from(Arc::new(7));
     assert_eq!(*slot.get(Ordering::Acquire).unwrap(), 7);
   }
 
   #[test]
   fn from_none() {
-    let slot = AtomicOnceArcOption::<i32>::from(None);
+    let slot = OnceArc::<i32>::from(None);
     assert!(slot.get(Ordering::Acquire).is_none());
   }
 
   #[test]
   fn from_some() {
-    let slot = AtomicOnceArcOption::from(Some(Arc::new(55)));
+    let slot = OnceArc::from(Some(Arc::new(55)));
     assert_eq!(*slot.get(Ordering::Acquire).unwrap(), 55);
   }
 
   #[test]
   fn debug_fmt() {
-    let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+    let slot: OnceArc<i32> = OnceArc::new();
     slot.store(Arc::new(42), Ordering::Release).unwrap();
     let dbg = format!("{:?}", slot);
     assert!(dbg.contains("42"));
@@ -371,7 +371,7 @@ mod tests {
     use std::sync::Barrier;
     use std::thread;
 
-    let slot = Arc::new(AtomicOnceArcOption::<i32>::new());
+    let slot = Arc::new(OnceArc::<i32>::new());
     let barrier = Arc::new(Barrier::new(10));
     let mut handles = Vec::new();
 
@@ -394,7 +394,7 @@ mod tests {
     use std::sync::Barrier;
     use std::thread;
 
-    let slot = Arc::new(AtomicOnceArcOption::from(Arc::new(99)));
+    let slot = Arc::new(OnceArc::from(Arc::new(99)));
     let barrier = Arc::new(Barrier::new(10));
     let mut handles = Vec::new();
 
@@ -414,13 +414,13 @@ mod tests {
 
   #[test]
   fn get_mut_empty() {
-    let mut slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+    let mut slot: OnceArc<i32> = OnceArc::new();
     assert!(slot.get_mut().is_none());
   }
 
   #[test]
   fn get_mut_modifies_value() {
-    let mut slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+    let mut slot: OnceArc<i32> = OnceArc::new();
     slot.store(Arc::new(10), Ordering::Release).unwrap();
     *slot.get_mut().unwrap() = 20;
     assert_eq!(*slot.get(Ordering::Acquire).unwrap(), 20);

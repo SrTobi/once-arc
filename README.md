@@ -1,4 +1,4 @@
-# atomic-once-arc
+# once-arc
 
 A lock-free, thread-safe container that can be atomically initialized once with an `Arc<T>`.
 
@@ -7,40 +7,91 @@ Think of it as `Atomic<Option<Arc<T>>>` — but with a critical restriction:
 a single atomic read, no reference count manipulation, no locking.
 
 ## Usage
+## Quick start
+
+### `OnceArc` — low-level, lock-free
 
 ```rust
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
-use atomic_once_arc::AtomicOnceArcOption;
+use once_arc::OnceArc;
 
-// Start empty
-let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
-assert!(slot.get(Ordering::Acquire).is_none());
+let slot: OnceArc<i32> = OnceArc::new();
 
 // Set it once
 slot.store(Arc::new(42), Ordering::Release).unwrap();
 
-// get() returns &T — just a single atomic load
-assert_eq!(*slot.get(Ordering::Acquire).unwrap(), 42);
+// get() returns &T — a single atomic load, no refcount overhead
+assert_eq!(slot.get(Ordering::Acquire), Some(&42));
 
-// load() returns a cloned Arc
+// load() clones the Arc when you need ownership
 let arc = slot.load(Ordering::Acquire).unwrap();
 assert_eq!(*arc, 42);
 
-// Storing again fails, returning the value
+// Second store fails, returning the value back
 let err = slot.store(Arc::new(99), Ordering::Release).unwrap_err();
 assert_eq!(*err, 99);
 ```
 
-## API
+### `InitOnceArc` — Mutex protected initialization
 
-| Method                    | Returns              | Cost                                      |
-| ------------------------- | -------------------- | ----------------------------------------- |
-| `get(Ordering)`           | `Option<&T>`         | Single atomic load (no refcount overhead) |
-| `load(Ordering)`          | `Option<Arc<T>>`     | Atomic load + refcount increment          |
-| `store(Arc<T>, Ordering)` | `Result<(), Arc<T>>` | One CAS operation                         |
-| `is_set(Ordering)`        | `bool`               | Single atomic load                        |
-| `into_inner()`            | `Option<Arc<T>>`     | No atomic ops (consumes self)             |
+```rust
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
+use once_arc::InitOnceArc;
+
+let cell: InitOnceArc<String> = InitOnceArc::new();
+
+// First call runs the closure
+cell.init(|| {
+    // While the closure is running, we are holding a mutex
+    // so no other thread can set the cell.
+    // Load accesses will not block and see that the cell is still empty.
+    Arc::new("hello".to_string())
+}).unwrap();
+
+// The value is already set, so the closure is not run
+cell.init(|| unreachable!()).unwrap();
+
+assert_eq!(cell.get(Ordering::Acquire).unwrap(), "hello");
+```
+
+Multiple threads can race to call `store`/`init`/`try_init`; exactly one will run the
+closure, and the rest will block briefly on the mutex.
+
+## API overview
+
+### `OnceArc<T>`
+
+| Method                    | Returns              | Cost                          |
+| ------------------------- | -------------------- | ----------------------------- |
+| `get(Ordering)`           | `Option<&T>`         | Single atomic load            |
+| `load(Ordering)`          | `Option<Arc<T>>`     | Atomic load + `Arc::clone`    |
+| `store(Arc<T>, Ordering)` | `Result<(), Arc<T>>` | One CAS                       |
+| `is_set(Ordering)`        | `bool`               | Single atomic load            |
+| `into_inner()`            | `Option<Arc<T>>`     | No atomic ops (consumes self) |
+| `get_mut()`               | `Option<&mut T>`     | No atomic ops (exclusive ref) |
+
+### `InitOnceArc<T>`
+
+| Method             | Returns                                   | Cost                                 |
+| ------------------ | ----------------------------------------- | ------------------------------------ |
+| `get(Ordering)`    | `Option<&T>`                              | Single atomic load                   |
+| `load(Ordering)`   | `Option<Arc<T>>`                          | Atomic load + `Arc::clone`           |
+| `store(Arc<T>)`    | `Result<(), Result<Arc<T>, PoisonError>>` | Mutex lock + CAS                     |
+| `init(f)`          | `Result<bool, PoisonError>`               | Mutex lock + closure (once)          |
+| `try_init(f)`      | `Result<bool, Result<E, PoisonError>>`    | Mutex lock + fallible closure (once) |
+| `is_set(Ordering)` | `bool`                                    | Single atomic load                   |
+| `into_inner()`     | `Option<Arc<T>>`                          | No atomic ops (consumes self)        |
+| `get_mut()`        | `Option<&mut T>`                          | No atomic ops (exclusive ref)        |
+
+## Why not just use `OnceLock<Arc<T>>`?
+
+`OnceLock` stores the value inline. `get()` returns `&Arc<T>`, so
+callers must go through two pointer indirections to reach `T`, and
+cloning requires an `Arc::clone`. With `OnceArc`, the atomic
+_is_ the `Arc`'s pointer — `get()` returns `&T` directly with a single
+atomic load and zero indirection beyond the pointer itself.
 
 ## Why is a general `Atomic<Arc<T>>` so hard?
 
@@ -84,19 +135,19 @@ that's typically on the hot path.
 
 ### How set-once sidesteps all of this
 
-`AtomicOnceArcOption` avoids every one of these problems with a single
+`OnceArc` avoids every one of these problems with a single
 rule: **the pointer, once written, never changes**.
 
-- **No use-after-free**: the `Arc` is alive from the moment of `set()`
-  until the `AtomicOnceArcOption` is dropped. No thread can remove it in
+- **No use-after-free**: the `Arc` is alive from the moment of `store()`
+  until the `OnceArc` is dropped. No thread can remove it in
   between.
 - **No ABA problem**: the value transitions from null to a pointer
   exactly once. No pointer is ever reused.
 - **No deferred reclamation**: since the pointer is never swapped out,
   there's nothing to reclaim while readers exist.
-- **No refcount on load**: `load()` returns `&T` tied to the lifetime of
+- **No refcount on `get()`**: `get()` returns `&T` tied to the lifetime of
   `&self`. Since the data can't be freed while a shared reference to the
   container exists, this is sound without touching the reference count.
 
-The result: `load()` compiles down to a single atomic load instruction
+The result: `get()` compiles down to a single atomic load instruction
 (which on x86 is just a plain `mov`), making it effectively zero-cost.
