@@ -18,7 +18,7 @@ let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
 assert!(slot.get(Ordering::Acquire).is_none());
 
 // Set it once
-slot.set(Arc::new(42), Ordering::Release).unwrap();
+slot.store(Arc::new(42), Ordering::Release).unwrap();
 
 // get() returns &T — just a single atomic load
 assert_eq!(*slot.get(Ordering::Acquire).unwrap(), 42);
@@ -27,20 +27,20 @@ assert_eq!(*slot.get(Ordering::Acquire).unwrap(), 42);
 let arc = slot.load(Ordering::Acquire).unwrap();
 assert_eq!(*arc, 42);
 
-// Setting again fails, returning the value
-let err = slot.set(Arc::new(99), Ordering::Release).unwrap_err();
+// Storing again fails, returning the value
+let err = slot.store(Arc::new(99), Ordering::Release).unwrap_err();
 assert_eq!(*err, 99);
 ```
 
 ## API
 
-| Method                  | Returns              | Cost                                      |
-| ----------------------- | -------------------- | ----------------------------------------- |
-| `get(Ordering)`         | `Option<&T>`         | Single atomic load (no refcount overhead) |
-| `load(Ordering)`        | `Option<Arc<T>>`     | Atomic load + refcount increment          |
-| `set(Arc<T>, Ordering)` | `Result<(), Arc<T>>` | One CAS operation                         |
-| `is_set(Ordering)`      | `bool`               | Single atomic load                        |
-| `into_inner()`          | `Option<Arc<T>>`     | No atomic ops (consumes self)             |
+| Method                    | Returns              | Cost                                      |
+| ------------------------- | -------------------- | ----------------------------------------- |
+| `get(Ordering)`           | `Option<&T>`         | Single atomic load (no refcount overhead) |
+| `load(Ordering)`          | `Option<Arc<T>>`     | Atomic load + refcount increment          |
+| `store(Arc<T>, Ordering)` | `Result<(), Arc<T>>` | One CAS operation                         |
+| `is_set(Ordering)`        | `bool`               | Single atomic load                        |
+| `into_inner()`            | `Option<Arc<T>>`     | No atomic ops (consumes self)             |
 
 ## Why is a general `Atomic<Arc<T>>` so hard?
 
