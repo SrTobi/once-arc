@@ -4,15 +4,18 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::OnceArc;
 
-/// A thread-safe container that can be lazily initialized once with an `Arc<T>`,
-/// using a mutex to protect the initialization function.
+/// A thread-safe container that provides synchronized one-time initialization
+/// of an `Arc<T>` via a closure.
 ///
-/// This builds on [`OnceArc`] by adding `init` and
-/// `try_init` methods. The fast path (value already set) is a single
-/// atomic load — identical to `OnceArc::get`. The slow path
-/// (first initialization) acquires a mutex, double-checks that no other thread
-/// initialized in the meantime, runs the provided closure, and stores the
-/// result.
+/// This builds on [`OnceArc`] by adding `init` and `try_init` methods.
+/// When multiple threads call `init` concurrently on an empty cell, exactly
+/// one thread will execute the closure — the others block on an internal
+/// mutex and then observe the already-initialized value. If the closure
+/// completes without panicking, its return value becomes the stored `Arc<T>`.
+/// If it panics, the mutex is poisoned and subsequent calls return an error.
+///
+/// Once set, all reads go through the fast path: a single atomic load,
+/// identical to [`OnceArc::get`] — no mutex, no CAS.
 ///
 /// # Examples
 ///
@@ -85,12 +88,11 @@ impl<T> InitOnceArc<T> {
   /// Returns `Ok(true)` if the value was initialized, `Ok(false)` if it was
   /// already set, or `Err` if the mutex is poisoned.
   ///
-  /// If multiple threads call this concurrently on an empty cell, exactly one
-  /// will execute `f`; the others will block on the mutex and then see the
-  /// initialized value.
+  /// Only one initializer will be run per [`InitOnceArc`] and if the initializer doesn't panic,
+  /// its return value is guaranteed to become the stored `Arc<T>`.
+  /// If it panics, the mutex is poisoned and subsequent calls will return an error.
   ///
-  /// If `f` panics, the mutex is poisoned and subsequent calls will return
-  /// `Err(PoisonError)`.
+  /// While the initializer is running all readers will see the cell as empty.
   ///
   /// # Examples
   ///
@@ -121,6 +123,12 @@ impl<T> InitOnceArc<T> {
   /// If `f` returns `Err`, the cell remains empty and the error is propagated.
   /// Returns `Ok(true)` if initialized, `Ok(false)` if already set,
   /// `Err(Ok(e))` if `f` failed, or `Err(Err(_))` if the mutex is poisoned.
+  ///
+  /// Only one initializer will be run per [`InitOnceArc`] at a time and if the initializer doesn't panic or return an error,
+  /// its return value is guaranteed to become the stored `Arc<T>`.
+  /// If it panics, the mutex is poisoned and subsequent calls will return an error.
+  ///
+  /// While the initializer is running all readers will see the cell as empty.
   ///
   /// # Examples
   ///

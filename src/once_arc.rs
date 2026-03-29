@@ -63,8 +63,8 @@ impl<T> OnceArc<T> {
   ///
   /// `ordering` describes the required ordering for the
   /// read-modify-write operation that takes place if the None-check succeeds.
-  /// Using [`Acquire`] as ordering makes the store part
-  /// of this operation [`Relaxed`], and using [`Release`] makes the load [`Relaxed`].
+  /// Using [`Acquire`](std::sync::atomic::Ordering::Acquire) as ordering makes the store part
+  /// of this operation [`Relaxed`](std::sync::atomic::Ordering::Relaxed), and using [`Release`](std::sync::atomic::Ordering::Release) makes the load [`Relaxed`](std::sync::atomic::Ordering::Relaxed).
   ///
   /// # Examples
   ///
