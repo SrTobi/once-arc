@@ -16,8 +16,9 @@ fi
 
 # Run cargo tests to ensure everything is working before publishing
 echo "Running tests..."
-cargo clean
-cargo test --verbose --all
+
+RUSTFLAGS="-D warnings" cargo test --all
+RUSTFLAGS="-D warnings" cargo clippy --tests -- -D warnings
 
 echo "Trying to publish version $version..."
 
