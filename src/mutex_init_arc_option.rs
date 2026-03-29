@@ -17,16 +17,17 @@ use crate::AtomicOnceArcOption;
 /// # Examples
 ///
 /// ```
+/// use std::sync::Arc;
 /// use std::sync::atomic::Ordering;
 /// use atomic_once_arc::MutexInitArcOption;
 ///
 /// let cell: MutexInitArcOption<String> = MutexInitArcOption::new();
 ///
 /// // First call runs the initializer
-/// assert_eq!(cell.init(|| "hello".to_string()).unwrap(), true);
+/// assert_eq!(cell.init(|| "hello".to_string().into()).unwrap(), true);
 ///
 /// // Subsequent calls return Ok(false) without running the closure
-/// assert_eq!(cell.init(|| "world".to_string()).unwrap(), false);
+/// assert_eq!(cell.init(|| "world".to_string().into()).unwrap(), false);
 /// assert_eq!(cell.get(Ordering::Acquire).unwrap(), "hello");
 /// ```
 pub struct MutexInitArcOption<T> {
@@ -94,20 +95,21 @@ impl<T> MutexInitArcOption<T> {
   /// # Examples
   ///
   /// ```
+  /// use std::sync::Arc;
   /// use atomic_once_arc::MutexInitArcOption;
   ///
   /// let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
-  /// assert_eq!(cell.init(|| 42).unwrap(), true);
-  /// assert_eq!(cell.init(|| 99).unwrap(), false); // already initialized
+  /// assert_eq!(cell.init(|| Arc::new(42)).unwrap(), true);
+  /// assert_eq!(cell.init(|| Arc::new(99)).unwrap(), false); // already initialized
   /// ```
-  pub fn init(&self, f: impl FnOnce() -> T) -> Result<bool, PoisonError<()>> {
+  pub fn init(&self, f: impl FnOnce() -> Arc<T>) -> Result<bool, PoisonError<()>> {
     // Slow path: acquire mutex, double-check, initialize
     let _guard = self.init_mutex.lock().map_err(|_| PoisonError::new(()))?;
     if self.inner.is_set(Ordering::SeqCst) {
       return Ok(false);
     }
 
-    let arc = Arc::new(f());
+    let arc = f();
     self
       .inner
       .store(arc, Ordering::SeqCst)
@@ -123,6 +125,7 @@ impl<T> MutexInitArcOption<T> {
   /// # Examples
   ///
   /// ```
+  /// use std::sync::Arc;
   /// use atomic_once_arc::MutexInitArcOption;
   ///
   /// let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
@@ -130,10 +133,10 @@ impl<T> MutexInitArcOption<T> {
   /// let err = cell.try_init(|| Err("oops")).unwrap_err().unwrap();
   /// assert_eq!(err, "oops");
   ///
-  /// assert_eq!(cell.try_init(|| Ok::<_, &str>(42)).unwrap(), true);
-  /// assert_eq!(cell.try_init(|| Ok::<_, &str>(99)).unwrap(), false);
+  /// assert_eq!(cell.try_init(|| Ok::<_, &str>(Arc::new(42))).unwrap(), true);
+  /// assert_eq!(cell.try_init(|| Ok::<_, &str>(Arc::new(99))).unwrap(), false);
   /// ```
-  pub fn try_init<E>(&self, f: impl FnOnce() -> Result<T, E>) -> Result<bool, Result<E, PoisonError<()>>> {
+  pub fn try_init<E>(&self, f: impl FnOnce() -> Result<Arc<T>, E>) -> Result<bool, Result<E, PoisonError<()>>> {
     // Slow path
     let _guard = self.init_mutex.lock().map_err(|_| Err(PoisonError::new(())))?;
     if self.inner.is_set(Ordering::SeqCst) {
@@ -144,10 +147,9 @@ impl<T> MutexInitArcOption<T> {
       Ok(v) => v,
       Err(e) => return Err(Ok(e)),
     };
-    let arc = Arc::new(value);
     self
       .inner
-      .store(arc, Ordering::SeqCst)
+      .store(value, Ordering::SeqCst)
       .unwrap_or_else(|_| unreachable!("store failed while holding init mutex"));
     Ok(true)
   }
@@ -159,13 +161,14 @@ impl<T> MutexInitArcOption<T> {
   /// # Examples
   ///
   /// ```
+  /// use std::sync::Arc;
   /// use std::sync::atomic::Ordering;
   /// use atomic_once_arc::MutexInitArcOption;
   ///
   /// let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
   /// assert!(cell.get(Ordering::Acquire).is_none());
   ///
-  /// cell.init(|| 42).unwrap();
+  /// cell.init(|| Arc::new(42)).unwrap();
   /// assert_eq!(cell.get(Ordering::Acquire), Some(&42));
   /// ```
   pub fn get(&self, ordering: Ordering) -> Option<&T> {
@@ -178,11 +181,12 @@ impl<T> MutexInitArcOption<T> {
   /// # Examples
   ///
   /// ```
+  /// use std::sync::Arc;
   /// use std::sync::atomic::Ordering;
   /// use atomic_once_arc::MutexInitArcOption;
   ///
   /// let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
-  /// cell.init(|| 42).unwrap();
+  /// cell.init(|| Arc::new(42)).unwrap();
   /// let arc = cell.load(Ordering::Acquire).unwrap();
   /// assert_eq!(*arc, 42);
   /// ```
@@ -195,12 +199,13 @@ impl<T> MutexInitArcOption<T> {
   /// # Examples
   ///
   /// ```
+  /// use std::sync::Arc;
   /// use std::sync::atomic::Ordering;
   /// use atomic_once_arc::MutexInitArcOption;
   ///
   /// let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
   /// assert!(!cell.is_set(Ordering::Relaxed));
-  /// cell.init(|| 1).unwrap();
+  /// cell.init(|| Arc::new(1)).unwrap();
   /// assert!(cell.is_set(Ordering::Relaxed));
   /// ```
   pub fn is_set(&self, ordering: Ordering) -> bool {
@@ -212,10 +217,11 @@ impl<T> MutexInitArcOption<T> {
   /// # Examples
   ///
   /// ```
+  /// use std::sync::Arc;
   /// use atomic_once_arc::MutexInitArcOption;
   ///
   /// let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
-  /// cell.init(|| 42).unwrap();
+  /// cell.init(|| Arc::new(42)).unwrap();
   /// let arc = cell.into_inner().unwrap();
   /// assert_eq!(*arc, 42);
   /// ```
@@ -235,7 +241,7 @@ impl<T> MutexInitArcOption<T> {
   /// use atomic_once_arc::MutexInitArcOption;
   ///
   /// let mut cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
-  /// cell.init(|| 10).unwrap();
+  /// cell.init(|| Arc::new(10)).unwrap();
   /// *cell.get_mut().unwrap() = 20;
   /// assert_eq!(cell.get(Ordering::Acquire), Some(&20));
   /// ```
@@ -267,8 +273,8 @@ mod tests {
   #[test]
   fn once_arc_init() {
     let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
-    assert_eq!(cell.init(|| 42).unwrap(), true);
-    assert_eq!(cell.init(|| 99).unwrap(), false);
+    assert_eq!(cell.init(|| Arc::new(42)).unwrap(), true);
+    assert_eq!(cell.init(|| Arc::new(99)).unwrap(), false);
     assert_eq!(cell.get(Ordering::Acquire), Some(&42));
   }
 
@@ -285,9 +291,9 @@ mod tests {
     assert_eq!(err, "fail");
     assert!(cell.get(Ordering::Acquire).is_none());
 
-    assert_eq!(cell.try_init(|| Ok::<_, &str>(42)).unwrap(), true);
+    assert_eq!(cell.try_init(|| Ok::<_, &str>(Arc::new(42))).unwrap(), true);
     assert_eq!(cell.get(Ordering::Acquire), Some(&42));
-    assert_eq!(cell.try_init(|| Ok::<_, &str>(99)).unwrap(), false);
+    assert_eq!(cell.try_init(|| Ok::<_, &str>(Arc::new(99))).unwrap(), false);
   }
 
   #[test]
@@ -296,7 +302,7 @@ mod tests {
     assert!(!cell.is_set(Ordering::Relaxed));
     assert!(cell.load(Ordering::Acquire).is_none());
 
-    cell.init(|| 7).unwrap();
+    cell.init(|| Arc::new(7)).unwrap();
     assert!(cell.is_set(Ordering::Relaxed));
     assert_eq!(*cell.load(Ordering::Acquire).unwrap(), 7);
   }
@@ -304,7 +310,7 @@ mod tests {
   #[test]
   fn once_arc_into_inner() {
     let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
-    cell.init(|| 42).unwrap();
+    cell.init(|| Arc::new(42)).unwrap();
     let arc = cell.into_inner().unwrap();
     assert_eq!(*arc, 42);
   }
@@ -332,10 +338,12 @@ mod tests {
       let barrier = barrier.clone();
       handles.push(thread::spawn(move || {
         barrier.wait();
-        cell.init(|| {
-          init_count.fetch_add(1, Ordering::Relaxed);
-          42
-        }).unwrap()
+        cell
+          .init(|| {
+            init_count.fetch_add(1, Ordering::Relaxed);
+            Arc::new(42)
+          })
+          .unwrap()
       }));
     }
 
@@ -349,7 +357,7 @@ mod tests {
   #[test]
   fn once_arc_debug_fmt() {
     let cell: MutexInitArcOption<i32> = MutexInitArcOption::new();
-    cell.init(|| 42).unwrap();
+    cell.init(|| Arc::new(42)).unwrap();
     let dbg = format!("{:?}", cell);
     assert!(dbg.contains("42"));
   }
