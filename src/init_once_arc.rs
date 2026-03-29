@@ -281,8 +281,8 @@ mod tests {
   #[test]
   fn once_arc_init() {
     let cell: InitOnceArc<i32> = InitOnceArc::new();
-    assert_eq!(cell.init(|| Arc::new(42)).unwrap(), true);
-    assert_eq!(cell.init(|| Arc::new(99)).unwrap(), false);
+    assert!(cell.init(|| Arc::new(42)).unwrap());
+    assert!(!cell.init(|| Arc::new(99)).unwrap());
     assert_eq!(cell.get(Ordering::Acquire), Some(&42));
   }
 
@@ -299,9 +299,9 @@ mod tests {
     assert_eq!(err, "fail");
     assert!(cell.get(Ordering::Acquire).is_none());
 
-    assert_eq!(cell.try_init(|| Ok::<_, &str>(Arc::new(42))).unwrap(), true);
+    assert!(cell.try_init(|| Ok::<_, &str>(Arc::new(42))).unwrap());
     assert_eq!(cell.get(Ordering::Acquire), Some(&42));
-    assert_eq!(cell.try_init(|| Ok::<_, &str>(Arc::new(99))).unwrap(), false);
+    assert!(!cell.try_init(|| Ok::<_, &str>(Arc::new(99))).unwrap());
   }
 
   #[test]
