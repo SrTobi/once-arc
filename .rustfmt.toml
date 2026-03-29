@@ -1,0 +1,5 @@
+group_imports = "StdExternalCrate"
+imports_granularity = "Module"
+max_width = 115
+tab_spaces = 2
+edition = "2024"
