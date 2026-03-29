@@ -1,12 +1,17 @@
 [package]
 name = "once-arc"
 version = "0.1.0"
-edition = "2024"
 description = "Initialize-once Arc<T> containers with zero-cost reads"
+edition = "2024"
 license = "MIT"
 readme = "README.md"
 keywords = ["arc", "atomic", "once", "lock-free", "concurrency"]
 categories = ["concurrency"]
 authors = ["SrTobi <srtobi@proton.me>"]
+publish = true
+
+documentation = "https://docs.rs/once-arc"
+homepage = "https://github.com/SrTobi/once-arc/"
+repository = "https://github.com/SrTobi/once-arc/"
 
 [dependencies]

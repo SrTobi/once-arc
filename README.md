@@ -1,3 +1,7 @@
+[![Build](https://github.com/SrTobi/once-arc/actions/workflows/rust.yml/badge.svg)](https://github.com/SrTobi/once-arc)
+[![Creates.io](https://img.shields.io/crates/v/once-arc?style)](https://crates.io/crates/once-arc)
+[![Docs](https://docs.rs/once-arc/badge.svg)](https://docs.rs/once-arc/)
+
 # once-arc
 
 A lock-free, thread-safe container that can be atomically initialized once with an `Arc<T>`.
