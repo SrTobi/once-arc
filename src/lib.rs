@@ -266,6 +266,12 @@ mod tests {
   }
 
   #[test]
+  fn from_some() {
+    let slot = AtomicOnceArcOption::from(Some(Arc::new(55)));
+    assert_eq!(*slot.get(Ordering::Acquire).unwrap(), 55);
+  }
+
+  #[test]
   fn debug_fmt() {
     let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
     slot.set(Arc::new(42), Ordering::Release).unwrap();
