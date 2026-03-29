@@ -1,5 +1,5 @@
 mod atomic_once_arc_option;
-mod once;
+mod mutex_init_arc_option;
 
 pub use atomic_once_arc_option::AtomicOnceArcOption;
-pub use once::MutexInitArcOption;
+pub use mutex_init_arc_option::MutexInitArcOption;
