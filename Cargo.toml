@@ -2,5 +2,11 @@
 name = "once-arc"
 version = "0.1.0"
 edition = "2024"
+description = "Initialize-once Arc<T> containers with zero-cost reads"
+license = "MIT"
+readme = "README.md"
+keywords = ["arc", "atomic", "once", "lock-free", "concurrency"]
+categories = ["concurrency"]
+authors = ["SrTobi <srtobi@proton.me>"]
 
 [dependencies]

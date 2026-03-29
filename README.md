@@ -133,7 +133,7 @@ techniques like:
 All of these approaches add overhead to loads — exactly the operation
 that's typically on the hot path.
 
-### How set-once sidesteps all of this
+### How initialize-once sidesteps all of this
 
 `OnceArc` avoids every one of these problems with a single
 rule: **the pointer, once written, never changes**.

@@ -1,11 +1,11 @@
 //! # once-arc
 //!
-//! Set-once [`Arc<T>`](std::sync::Arc) containers with zero-cost reads.
+//! Initialize-once [`Arc<T>`](std::sync::Arc) containers with zero-cost reads.
 //!
 //! This crate provides two types for sharing data across threads where the
 //! value is written once and read many times:
 //!
-//! - **[`OnceArc`]** — a lock-free, CAS-based set-once slot.
+//! - **[`OnceArc`]** — a lock-free, CAS-based initialize-once slot.
 //!   You construct the [`Arc<T>`](std::sync::Arc) yourself and store it with an explicit
 //!   [`Ordering`](std::sync::atomic::Ordering).
 //!
