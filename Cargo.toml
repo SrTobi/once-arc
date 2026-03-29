@@ -1,6 +1,6 @@
 [package]
 name = "once-arc"
-version = "0.1.0"
+version = "0.1.1"
 description = "Initialize-once Arc<T> containers with zero-cost reads"
 edition = "2024"
 license = "MIT"
