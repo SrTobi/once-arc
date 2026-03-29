@@ -122,6 +122,22 @@ impl<T> AtomicOnceArcOption<T> {
       Some(unsafe { Arc::from_raw(ptr) })
     }
   }
+
+  /// Returns a mutable reference to the stored value, or `None` if not yet set.
+  ///
+  /// Since this requires `&mut self`, no atomic operations are needed and this
+  /// is guaranteed to be the only accessor.
+  pub fn get_mut(&mut self) -> Option<&mut T> {
+    let ptr = *self.ptr.get_mut();
+    if ptr.is_null() {
+      None
+    } else {
+      // SAFETY: We have exclusive access via &mut self. The pointer was created
+      // by Arc::into_raw and the data is valid until drop. &mut self guarantees
+      // no other references exist.
+      Some(unsafe { &mut *ptr })
+    }
+  }
 }
 
 impl<T> Default for AtomicOnceArcOption<T> {
@@ -301,5 +317,19 @@ mod tests {
     for h in handles {
       assert_eq!(h.join().unwrap(), 99);
     }
+  }
+
+  #[test]
+  fn get_mut_empty() {
+    let mut slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+    assert!(slot.get_mut().is_none());
+  }
+
+  #[test]
+  fn get_mut_modifies_value() {
+    let mut slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+    slot.set(Arc::new(10), Ordering::Release).unwrap();
+    *slot.get_mut().unwrap() = 20;
+    assert_eq!(*slot.get(Ordering::Acquire).unwrap(), 20);
   }
 }
