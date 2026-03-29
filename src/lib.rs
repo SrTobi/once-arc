@@ -44,6 +44,14 @@ unsafe impl<T: Send + Sync> Sync for AtomicOnceArcOption<T> {}
 
 impl<T> AtomicOnceArcOption<T> {
   /// Creates a new empty `AtomicOnceArcOption`.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use atomic_once_arc::AtomicOnceArcOption;
+  ///
+  /// let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+  /// ```
   pub const fn new() -> Self {
     Self {
       ptr: AtomicPtr::new(ptr::null_mut()),
@@ -57,6 +65,21 @@ impl<T> AtomicOnceArcOption<T> {
   /// read-modify-write operation that takes place if the None-check succeeds.
   /// Using [`Acquire`] as ordering makes the store part
   /// of this operation [`Relaxed`], and using [`Release`] makes the load [`Relaxed`].
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use std::sync::Arc;
+  /// use std::sync::atomic::Ordering;
+  /// use atomic_once_arc::AtomicOnceArcOption;
+  ///
+  /// let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+  /// assert!(slot.store(Arc::new(42), Ordering::Release).is_ok());
+  ///
+  /// // Second store fails
+  /// let err = slot.store(Arc::new(99), Ordering::Release).unwrap_err();
+  /// assert_eq!(*err, 99);
+  /// ```
   pub fn store(&self, value: Arc<T>, ordering: Ordering) -> Result<(), Arc<T>> {
     let raw = Arc::into_raw(value) as *mut T;
     match self
@@ -78,6 +101,20 @@ impl<T> AtomicOnceArcOption<T> {
   /// This is extremely fast: a single atomic load with no reference count
   /// manipulation. The returned reference is valid for as long as `&self` is
   /// valid, because the stored `Arc` is never removed until `self` is dropped.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use std::sync::Arc;
+  /// use std::sync::atomic::Ordering;
+  /// use atomic_once_arc::AtomicOnceArcOption;
+  ///
+  /// let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+  /// assert_eq!(slot.get(Ordering::Acquire), None);
+  ///
+  /// slot.store(Arc::new(42), Ordering::Release).unwrap();
+  /// assert_eq!(slot.get(Ordering::Acquire), Some(&42));
+  /// ```
   pub fn get(&self, ordering: Ordering) -> Option<&T> {
     let ptr = self.ptr.load(ordering);
     if ptr.is_null() {
@@ -94,6 +131,18 @@ impl<T> AtomicOnceArcOption<T> {
   /// count, so the caller gets an independent handle to the underlying data.
   ///
   /// Returns `None` if the value has not been set yet.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use std::sync::Arc;
+  /// use std::sync::atomic::Ordering;
+  /// use atomic_once_arc::AtomicOnceArcOption;
+  ///
+  /// let slot = AtomicOnceArcOption::from(Arc::new(42));
+  /// let arc = slot.load(Ordering::Acquire).unwrap();
+  /// assert_eq!(*arc, 42);
+  /// ```
   pub fn load(&self, ordering: Ordering) -> Option<Arc<T>> {
     let ptr = self.ptr.load(ordering);
     if ptr.is_null() {
@@ -107,11 +156,37 @@ impl<T> AtomicOnceArcOption<T> {
   }
 
   /// Returns `true` if a value has been stored.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use std::sync::Arc;
+  /// use std::sync::atomic::Ordering;
+  /// use atomic_once_arc::AtomicOnceArcOption;
+  ///
+  /// let slot: AtomicOnceArcOption<i32> = AtomicOnceArcOption::new();
+  /// assert!(!slot.is_set(Ordering::Relaxed));
+  ///
+  /// slot.store(Arc::new(1), Ordering::Release).unwrap();
+  /// assert!(slot.is_set(Ordering::Relaxed));
+  /// ```
   pub fn is_set(&self, ordering: Ordering) -> bool {
     !self.ptr.load(ordering).is_null()
   }
 
   /// Consumes `self` and returns the stored `Arc<T>`, if any.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use std::sync::Arc;
+  /// use std::sync::atomic::Ordering;
+  /// use atomic_once_arc::AtomicOnceArcOption;
+  ///
+  /// let slot = AtomicOnceArcOption::from(Arc::new(42));
+  /// let arc = slot.into_inner().unwrap();
+  /// assert_eq!(*arc, 42);
+  /// ```
   pub fn into_inner(mut self) -> Option<Arc<T>> {
     let ptr = *self.ptr.get_mut();
     std::mem::forget(self); // skip Drop since we're taking ownership of the Arc
@@ -127,6 +202,18 @@ impl<T> AtomicOnceArcOption<T> {
   ///
   /// Since this requires `&mut self`, no atomic operations are needed and this
   /// is guaranteed to be the only accessor.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use std::sync::Arc;
+  /// use std::sync::atomic::Ordering;
+  /// use atomic_once_arc::AtomicOnceArcOption;
+  ///
+  /// let mut slot = AtomicOnceArcOption::from(Arc::new(10));
+  /// *slot.get_mut().unwrap() = 20;
+  /// assert_eq!(slot.get(Ordering::Acquire), Some(&20));
+  /// ```
   pub fn get_mut(&mut self) -> Option<&mut T> {
     let ptr = *self.ptr.get_mut();
     if ptr.is_null() {
